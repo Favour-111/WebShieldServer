@@ -24,10 +24,44 @@ const reportRoutes = require('./routes/report.routes');
 const app = express();
 const server = http.createServer(app);
 
+const configuredOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = configuredOrigins.length
+  ? configuredOrigins
+  : ['http://localhost:5173', 'https://web-shield-client.vercel.app'];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  return (
+    allowedOrigins.includes(origin)
+    || /^https:\/\/web-shield-client(?:-[a-z0-9-]+)?\.vercel\.app$/.test(origin)
+  );
+};
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
+};
+
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -52,14 +86,8 @@ app.use(
 );
 
 // CORS
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Request parsing
 app.use(express.json({ limit: '10mb' }));
