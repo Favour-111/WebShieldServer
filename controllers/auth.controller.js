@@ -4,6 +4,14 @@ const User = require('../models/User');
 const Log = require('../models/Log');
 const logger = require('../utils/logger');
 
+const ensureJwtSecrets = () => {
+  if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+    const error = new Error('JWT secrets are not configured.');
+    error.statusCode = 503;
+    throw error;
+  }
+};
+
 /**
  * Generate JWT access token
  */
@@ -23,6 +31,8 @@ const generateRefreshToken = (id) =>
  */
 const register = async (req, res, next) => {
   try {
+    ensureJwtSecrets();
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -78,6 +88,8 @@ const register = async (req, res, next) => {
  */
 const login = async (req, res, next) => {
   try {
+    ensureJwtSecrets();
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
@@ -150,6 +162,8 @@ const login = async (req, res, next) => {
  */
 const refreshToken = async (req, res, next) => {
   try {
+    ensureJwtSecrets();
+
     const { refreshToken: token } = req.body;
     if (!token) {
       return res.status(401).json({ success: false, message: 'Refresh token required.' });

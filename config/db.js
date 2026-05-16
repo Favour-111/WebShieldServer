@@ -4,6 +4,12 @@ const logger = require('../utils/logger');
 let connectionPromise;
 
 const connectDB = async () => {
+  if (!process.env.MONGO_URI) {
+    const error = new Error('MongoDB connection string is not configured.');
+    error.statusCode = 503;
+    throw error;
+  }
+
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
