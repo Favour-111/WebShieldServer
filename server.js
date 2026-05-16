@@ -24,33 +24,9 @@ const reportRoutes = require('./routes/report.routes');
 const app = express();
 const server = http.createServer(app);
 
-const configuredOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const allowedOrigins = configuredOrigins.length
-  ? configuredOrigins
-  : ['http://localhost:5173', 'https://web-shield-client.vercel.app'];
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) {
-    return true;
-  }
-
-  return (
-    allowedOrigins.includes(origin)
-    || /^https:\/\/web-shield-client(?:-[a-z0-9-]+)?\.vercel\.app$/.test(origin)
-  );
-};
-
 const corsOptions = {
   origin(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
+    return callback(null, origin || true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -61,7 +37,9 @@ const corsOptions = {
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin(origin, callback) {
+      return callback(null, origin || true);
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -71,8 +49,10 @@ const io = new Server(server, {
 initializeSocket(io);
 setSocketIO(io);
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB once during startup/cold start
+connectDB().catch((error) => {
+  logger.error(`Database initialization failed: ${error.message}`);
+});
 
 // Trust proxy — required for correct IP detection behind Nginx, Heroku, Railway, Render, etc.
 app.set('trust proxy', 1);
@@ -128,28 +108,30 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-  logger.info(`
+if (require.main === module) {
+  server.listen(PORT, () => {
+    logger.info(`
   ┌─────────────────────────────────────────┐
   │   WebShield Scanner API v1.0.0           │
   │   Running on port ${PORT}                    │
   │   Environment: ${process.env.NODE_ENV || 'development'}         │
   └─────────────────────────────────────────┘
   `);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed.');
-    process.exit(0);
   });
-});
 
-process.on('unhandledRejection', (err) => {
-  logger.error(`Unhandled Promise Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+      logger.info('Server closed.');
+      process.exit(0);
+    });
+  });
+
+  process.on('unhandledRejection', (err) => {
+    logger.error(`Unhandled Promise Rejection: ${err.message}`);
+    server.close(() => process.exit(1));
+  });
+}
 
 module.exports = { app, server };
