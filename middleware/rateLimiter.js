@@ -25,17 +25,37 @@ const apiLimiter = rateLimit({
 
 /**
  * Auth rate limiter — prevents brute-force on login/register
- * 30 attempts per 15 minutes (was 10 — too aggressive for normal use)
+ * Login is intentionally more forgiving to avoid locking out normal users
+ * during repeated retries in development or from shared IPs.
  */
-const authLimiter = rateLimit({
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: parseInt(process.env.LOGIN_RATE_LIMIT_MAX, 10) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   skip: skipOptions,
   message: {
     success: false,
     message: 'Too many authentication attempts. Please wait 15 minutes and try again.',
+  },
+  handler: (req, res, _next, options) => {
+    res.status(options.statusCode).json({
+      success: false,
+      message: options.message.message,
+      retryAfter: '15 minutes',
+    });
+  },
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.REGISTER_RATE_LIMIT_MAX, 10) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipOptions,
+  message: {
+    success: false,
+    message: 'Too many registration attempts. Please wait 15 minutes and try again.',
   },
   handler: (req, res, _next, options) => {
     res.status(options.statusCode).json({
@@ -68,5 +88,4 @@ const scanLimiter = rateLimit({
   },
 });
 
-module.exports = { apiLimiter, authLimiter, scanLimiter };
-
+module.exports = { apiLimiter, loginLimiter, registerLimiter, scanLimiter };

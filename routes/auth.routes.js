@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const router = express.Router();
 const { register, login, refreshToken, logout, getMe } = require('../controllers/auth.controller');
 const { authenticate } = require('../middleware/auth.middleware');
-const { authLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, registerLimiter } = require('../middleware/rateLimiter');
 
 const registerValidation = [
   body('name').trim().isLength({ min: 2, max: 50 }).withMessage('Name must be 2-50 characters'),
@@ -20,8 +20,8 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password required'),
 ];
 
-router.post('/register', authLimiter, registerValidation, register);
-router.post('/login', authLimiter, loginValidation, login);
+router.post('/register', registerLimiter, registerValidation, register);
+router.post('/login', loginLimiter, loginValidation, login);
 router.post('/refresh', refreshToken);
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getMe);
