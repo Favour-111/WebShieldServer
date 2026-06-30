@@ -10,6 +10,7 @@ const connectDB = require('./config/db');
 const { initializeSocket } = require('./sockets/scan.socket');
 const { setSocketIO } = require('./services/scanner.service');
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware');
+const { databaseReady } = require('./middleware/database.middleware');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const logger = require('./utils/logger');
 
@@ -80,6 +81,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Rate limiting
 app.use('/api/', apiLimiter);
+app.use('/api', databaseReady);
 
 // Health check
 app.get('/health', (req, res) => {
