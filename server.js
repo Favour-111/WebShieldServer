@@ -25,9 +25,42 @@ const reportRoutes = require('./routes/report.routes');
 const app = express();
 const server = http.createServer(app);
 
+const normalizeOrigin = (value) => value.trim().replace(/\/+$/, '');
+
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  'https://web-shield-client.vercel.app',
+  process.env.RENDER_EXTERNAL_URL,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+  process.env.CORS_ORIGINS,
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(','))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+
+  const normalizedOrigin = normalizeOrigin(origin);
+  const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+  if (localhostPattern.test(normalizedOrigin)) {
+    return true;
+  }
+
+  return allowedOrigins.includes(normalizedOrigin);
+};
+
 const corsOptions = {
   origin(origin, callback) {
-    return callback(null, origin || true);
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    logger.warn(`Blocked CORS origin: ${origin}`);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -39,7 +72,12 @@ const corsOptions = {
 const io = new Server(server, {
   cors: {
     origin(origin, callback) {
-      return callback(null, origin || true);
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      logger.warn(`Blocked Socket.io origin: ${origin}`);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
     methods: ['GET', 'POST'],
     credentials: true,
